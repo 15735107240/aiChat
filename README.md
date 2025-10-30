@@ -34,7 +34,7 @@ npm install
 ## 🚀 开发
 
 ```bash
-# 启动开发服务器
+# 启动开发服务器（开发环境，使用本地代理）
 yarn serve
 
 # 访问 http://localhost:8080
@@ -43,8 +43,11 @@ yarn serve
 ## 🏗️ 构建
 
 ```bash
-# 构建生产版本
+# 构建生产版本（默认）
 yarn build
+
+# 构建开发环境版本
+yarn build:dev
 
 # 构建文件将输出到 dist 目录
 ```
@@ -74,16 +77,37 @@ aichat/
 
 ## 🔧 配置
 
+### 环境配置
+
+项目支持两个环境：**开发环境**和**生产环境**。
+
+**环境列表：**
+- **开发环境 (development)**: 本地开发，使用代理到 `localhost:10010`
+- **生产环境 (production)**: 正式部署，API 地址为 `http://8.148.185.212/apifox`
+
+**配置文件：**
+- `.env.development` - 开发环境配置
+- `.env.production` - 生产环境配置
+- `.env.local` - 本地自定义配置（可选，不提交到 Git）
+
 ### API 配置
 
-默认 API 地址：`http://8.148.185.212/apifox`
-
-可以通过环境变量 `VUE_APP_API_BASE` 自定义 API 地址：
-
+**开发环境** (`.env.development`)：
 ```bash
-# .env.local
-VUE_APP_API_BASE=https://your-api-domain.com
+NODE_ENV=development
+VUE_APP_API_BASE=
+VUE_APP_PROXY_TARGET=http://localhost:10010
 ```
+- 使用相对路径，通过 Vue CLI 代理转发到本地后端
+- 避免跨域问题
+
+**生产环境** (`.env.production`)：
+```bash
+NODE_ENV=production
+VUE_APP_API_BASE=http://8.148.185.212/apifox
+```
+- 使用完整的 API 地址
+- 直接请求远程服务器
 
 ### 聊天 API
 
