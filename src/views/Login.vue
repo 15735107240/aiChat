@@ -83,6 +83,8 @@ export default {
         alert('请输入6位数字验证码（随便6位即可）')
         return
       }
+      // 保存用户ID到localStorage，以便页面刷新后仍能获取
+      localStorage.setItem('userId', this.phone)
       this.$router.push({
         name: 'Chat',
         query: { conversantId: this.phone }
