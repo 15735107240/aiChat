@@ -6,6 +6,7 @@
     </div>
     <div class="card">
       <form @submit.prevent="onSubmit">
+        <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
         <div class="field">
           <label for="phone">手机号</label>
           <input
@@ -14,7 +15,8 @@
             type="tel"
             inputmode="numeric"
             placeholder="请输入手机号"
-            maxlength="20"
+            maxlength="11"
+            :disabled="loading"
             required
           />
         </div>
@@ -28,18 +30,23 @@
               inputmode="numeric"
               placeholder="请输入6位验证码"
               maxlength="6"
+              :disabled="loading"
               required
             />
-            <button type="button" class="ghost" @click="sendCode" :disabled="sending">{{ sendText }}</button>
+            <button type="button" class="ghost" @click="sendCode" :disabled="sending || loading">{{ sendText }}</button>
           </div>
         </div>
-        <button type="submit" class="primary">开始对话</button>
+        <button type="submit" class="primary" :disabled="loading">
+          {{ loading ? '登录中...' : '开始对话' }}
+        </button>
       </form>
     </div>
   </div>
-  </template>
+</template>
 
 <script>
+import { getAuthCode, login, getCurrentUser } from '@/utils/api'
+
 export default {
   name: 'LoginPage',
   data() {
@@ -47,7 +54,9 @@ export default {
       phone: '',
       code: '',
       sending: false,
-      countdown: 0
+      countdown: 0,
+      loading: false,
+      errorMessage: ''
     }
   },
   computed: {
@@ -56,43 +65,102 @@ export default {
     }
   },
   methods: {
-    sendCode() {
+    async sendCode() {
       if (!this.phone) {
-        alert('请输入手机号')
+        this.errorMessage = '请输入手机号'
         return
       }
-      alert('因为开发者太穷发不起短信，随便输入六位数字好了')
+      
+      // 验证手机号格式（11位数字，1开头）
+      if (!/^1\d{10}$/.test(this.phone)) {
+        this.errorMessage = '请输入正确的手机号格式（11位数字，1开头）'
+        return
+      }
+      
+      this.errorMessage = ''
       this.sending = true
-      this.countdown = 60
-      const tick = () => {
-        if (this.countdown <= 0) {
-          this.sending = false
-          return
+      
+      try {
+        // 调用获取验证码接口
+        const data = await getAuthCode(this.phone)
+        
+        // 如果接口返回了验证码（开发环境），自动回显到输入框
+        if (data.code) {
+          this.code = data.code
         }
-        this.countdown -= 1
+        
+        // 显示提示信息
+        if (data.message) {
+          this.errorMessage = data.message
+          // 如果是成功消息，3秒后清除
+          if (data.success) {
+            setTimeout(() => {
+              this.errorMessage = ''
+            }, 3000)
+          }
+        }
+        
+        // 开始倒计时
+        this.countdown = 60
+        const tick = () => {
+          if (this.countdown <= 0) {
+            this.sending = false
+            return
+          }
+          this.countdown -= 1
+          setTimeout(tick, 1000)
+        }
         setTimeout(tick, 1000)
+      } catch (error) {
+        console.error('获取验证码失败:', error)
+        this.errorMessage = error.message || '获取验证码失败，请重试'
+        this.sending = false
       }
-      setTimeout(tick, 1000)
     },
-    onSubmit() {
+    async onSubmit() {
       if (!this.phone) {
-        alert('请输入手机号')
+        this.errorMessage = '请输入手机号'
         return
       }
+      
+      // 验证手机号格式
+      if (!/^1\d{10}$/.test(this.phone)) {
+        this.errorMessage = '请输入正确的手机号格式（11位数字，1开头）'
+        return
+      }
+      
       if (!/^\d{6}$/.test(this.code)) {
-        alert('请输入6位数字验证码（随便6位即可）')
+        this.errorMessage = '请输入6位数字验证码'
         return
       }
-      // 保存用户ID到localStorage，以便页面刷新后仍能获取
-      localStorage.setItem('userId', this.phone)
-      this.$router.push({
-        name: 'Chat',
-        query: { conversantId: this.phone }
-      })
+      
+      this.errorMessage = ''
+      this.loading = true
+      
+      try {
+        // 1. 调用登录接口获取 accessToken
+        await login(this.phone, this.code)
+        
+        // 2. 获取当前用户信息（包含 username）
+        await getCurrentUser()
+        
+        // 3. 跳转到聊天页面（不需要传递 conversantId，从用户信息中获取）
+        const redirect = this.$route.query.redirect
+        if (redirect) {
+          this.$router.push(redirect)
+        } else {
+          this.$router.push({ name: 'Chat' })
+        }
+      } catch (error) {
+        console.error('登录失败:', error)
+        this.errorMessage = error.message || '登录失败，请检查验证码是否正确'
+      } finally {
+        this.loading = false
+      }
     }
   }
 }
- </script>
+</script>
 
 <style scoped>
 .login-wrap {
@@ -174,6 +242,16 @@ button:disabled {
   color: #9aa3b2;
   font-size: 12px;
   line-height: 1.6;
+}
+.error-message {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #dc2626;
+  font-size: 13px;
+  text-align: center;
 }
 </style>
 
